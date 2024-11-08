@@ -1,0 +1,4 @@
+- source: analise.qmd
+  quarto-pub:
+    - id: 51bbc0ee-e948-41d8-89bb-f9fdb84267bc
+      url: 'https://felipequentino.quarto.pub/analise-formulario-ousi'

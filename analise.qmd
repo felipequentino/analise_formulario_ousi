@@ -1,0 +1,235 @@
+---
+title: Análise de dados do formulário do Óusi
+author: João F. Quentino
+jupyter: python3
+format: html
+---
+
+Essa é uma análise do formulário que recebemos do Óusi, onde teve 1751 respostas. A partir dele, realizei verificações em cima dos dados, a fim de obter conhecimento sobre nosso público alvo.
+```{python}
+#| echo: false
+import pandas as pd
+import numpy as np
+import matplotlib.pyplot as plt
+import seaborn as sns
+from wordcloud import WordCloud
+```
+
+```{python}
+#| echo: false
+df = pd.read_csv('forms.csv', encoding='utf-8')
+df_cleaned = df # If some moment i need to clean the DataFrame, I will do here
+```
+### Vemos que, a grande maioria das respostas são de moradores de prédios (64.8% do total (1.751))
+
+```{python}
+#| echo: false
+print("Respostas de moradores de Prédios =", df["casaOuPredios"].value_counts()["Moro em um condomínio de Prédios"])
+print("Respostas de moradores de Casas   =", df["casaOuPredios"].value_counts()["Moro em um condomínio de Casas"])
+print("Respostas de segurança de Prédios =", df["trabalhaCasaPredio"].value_counts()["Trabalho em um condomínio de Prédios"])
+print("Respostas de segurança de Prédios =", df["trabalhaCasaPredio"].value_counts()["Trabalho em um condomínio de Casas"])
+```
+
+```{python}
+#| echo: false
+sns.countplot(x='moradorOuSeguranca', data=df_cleaned)
+plt.title('Distribuição de Moradores e Seguranças')
+plt.show()
+```
+
+```{python}
+#| echo: false
+sns.countplot(x='casaOuPredios', data=df_cleaned)
+plt.title('Types of Residences')
+plt.xticks(rotation=45)
+plt.show()
+```
+
+## A média de segurança é 3 (intervalo = 1-5)
+
+### Tanto nos condomínios de casas, quanto nos condomínios de prédios, tanto do ponto de vista de um morador, quanto do de um segurança, o valor médio é de 3, exceto pelos seguranças que trabalham em prédios, que a média foi 4. 
+
+```{python}
+#| echo: false
+# Convert Timestamp to datetime (not necessary right now, but it is always recommended to this)
+only_one_question_security = ["1a5seguroCasas", "1a5seguroPredios"]
+df_cleaned['Timestamp'] = pd.to_datetime(df_cleaned['Timestamp'], format='%m/%d/%Y %H:%M:%S')
+
+# Convert numerical ratings to integers
+security_columns = ['1a5seguroCasas', '1a5segurancaCasas', '1a5seguroPredios', '1a5segurancaPredios', 'seguranca1a5trabalhaPredio', '1a5segurancaTrabalhaCasas']
+for col in security_columns:
+    df_cleaned[col] = pd.to_numeric(df_cleaned[col], errors='coerce') # coerce prevents a error to be thrown if is a string ou a NaN value in some column
+                                
+# print(df_cleaned.describe())
+security_means = df_cleaned[security_columns].mean()
+
+plt.figure(figsize=(10, 6))
+security_means.plot(kind='bar', color='skyblue')
+plt.title('Média das Avaliações de Segurança')
+plt.ylabel('Média da Avaliação')
+plt.xlabel('Categorias de Segurança')
+plt.xticks(rotation=45)
+plt.show()
+```
+
+## Hipótese: dado um condomínio de baixa segurança (1-2), há uma ocorrência maior de problemas dentro do condomínio?
+
+### Primeiramente, vamos analisar as respostas por nível de segurança:
+
+
+```{python}
+#| echo: false
+low_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([1, 2]).any(axis=1)]
+medium_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([3]).any(axis=1)]
+high_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([4,5]).any(axis=1)]
+
+```
+```{python}
+#| echo: false
+security_counts = [
+    df_cleaned[only_one_question_security].isin([1]).sum().sum(),  # Segurança nível 1
+    df_cleaned[only_one_question_security].isin([2]).sum().sum(),  # Segurança nível 2
+    df_cleaned[only_one_question_security].isin([3]).sum().sum(),  # Segurança nível 3
+    df_cleaned[only_one_question_security].isin([4]).sum().sum(),  # Segurança nível 4
+    df_cleaned[only_one_question_security].isin([5]).sum().sum()   # Segurança nível 5
+]
+
+# Labels e cores para cada nível de segurança
+security_levels = ['Nível 1', 'Nível 2', 'Nível 3', 'Nível 4', 'Nível 5']
+colors = ['#ff9999','#66b3ff','#99ff99','#ffcc99','#c2c2f0']
+
+# Criação do gráfico de pizza
+plt.figure(figsize=(8, 8))
+plt.pie(security_counts, labels=security_levels, autopct='%1.1f%%', startangle=140, colors=colors)
+plt.title('Distribuição de Respostas por Nível de Segurança (1 a 5)')
+plt.show()
+```
+
+```{python}
+#| echo: false
+low_security_count = low_security[only_one_question_security].count().sum()
+medium_security_count = medium_security[only_one_question_security].count().sum()
+high_security_count = high_security[only_one_question_security].count().sum()
+
+security_levels = ['Baixa Segurança', 'Média Segurança', 'Alta Segurança']
+counts = [low_security_count, medium_security_count, high_security_count]
+
+plt.figure(figsize=(8, 8))
+plt.pie(counts, labels=security_levels, autopct='%1.1f%%', startangle=140, colors=['salmon', 'gold', 'lightgreen'])
+plt.title('Distribuição de Respostas por Nível de Segurança')
+plt.show()
+```
+
+### Podemos observar que, a maioria das respostas foi de pessoas que dizem que seu condomínio tem uma segurança nível 4. A partir disso, separei entre baixa segurança (1-2), média segurança (3) e alta segurança (4-5).
+### A partir disso, podemos perceber que 23.7% das respostas são de pessoas que moram em condomínios com baixa segurança, agora vamos para as contagens dos problemas:
+
+```{python}
+#| echo: false
+only_one_question_security = ["1a5seguroCasas", "1a5seguroPredios"]
+
+# Group security columns of condominium houses and condominium buildings by security level
+low_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([1, 2]).any(axis=1)]
+print("Quantidade de problemas em condomínios de baixa segurança de casas = ", low_security["problemasDescricaoCasas"].count())
+print("Quantidade de problemas em condomínios de baixa segurança de prédios = ",low_security["descricaoPredios"].count())
+print()
+
+medium_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([3]).any(axis=1)]
+print("Quantidade de problemas em condomínios de média segurança de casas = ",medium_security["problemasDescricaoCasas"].count())
+print("Quantidade de problemas em condomínios de média segurança de prédios = ",medium_security["descricaoPredios"].count())
+print()
+
+high_security = df_cleaned.loc[df_cleaned[only_one_question_security].isin([4,5]).any(axis=1)]
+print("Quantidade de problemas em condomínios de alta segurança de casas = ",high_security["problemasDescricaoCasas"].count())
+print("Quantidade de problemas em condomínios de alta segurança de prédios = ",high_security["descricaoPredios"].count())
+```
+## Por mais que condomínios de baixa segurança equivalam a apenas 23.7% das respostas, elas foram a que mais tiveram problemas em condomínios de prédios, de forma esmagadora. E um número alto também de problemas em condomínios de casas
+### É importante ressaltar também que, em condomínio de alta segurança também há vários problemas, não tanto quanto os de média e baixa segurança, mas há sim problemas!
+
+# Vamos a alguns relatos:
+### Relatos de problemas de Prédios:
+- "Invasão por vândalos, ladrões de motos."
+- "Pessoas entram junto com moradores e passam despercebidas. Já meu pai, morador idoso, ficou na madrugada proibido de entrar e o mandaram tentar no condomínio vizinho (o sistema com nome dos moradores estava fora do ar e o porteiro da madrugada não o conhecia). Visitantes/convidados já furtaram objetos de moradores nas áreas comuns."
+- "O porteiro do meu prédio, deu confiança a Namorado da minha inquilina e deixou ele subir sem ser anunciado, o rapaz ao subir agredido a menina fisicamente, moralmente se não fosse os vizinhos ele tinha matado a Garota."
+- "Pessoas passaram pela portaria se dizendo parentes de morador q nao estava. Disseram que tinham a chave. Os porteiros liberaram acesso. Furtaram um apto em outro andar di que o indicado, mediante arrombamento. Sairam do condominio normalmente, pela portaria."
+- "Roubo homem aranha" (seja lá o que isso significa...)
+  
+### Relatos de problemas de casas
+- "Meus pais tb moram no condomínio, são idosos eu moro na frente da casa deles.Meu pai estava sozinho na casa ele deixou entrar um rapaz dizendo que era do banco, levou o cartão dele. Meu pai estava sozinho no momento. Quando eu e minha mãe chegamos ele nos contou na mesma hora fomos fazer um boletim de ocorrência e liguei no app do banco para bloquear o cartão."
+- "Bandidos renderam morador entraram e saíram na maior. Outro caso ele entraram por cima e foram direto na casa do morador."
+- "O condomínio foi invadido e 3 casas foram assaltadas. Depois disso foi necessário rever todo esquema de segurança."
+- "Adentraram dentro do condomínio, através dos muros laterais e furtaram 3 casas.""
+- "Roubo de moveis de picina." (se eu soubesse, daria um desconto de 15% na JF Móveis para a compra dos novos móveis da área gourmet.)
+
+## TODOS esses relatos são de SUPOSTOS condomínios de alta segurança!
+```{python}
+#| echo: false
+import nltk # importing Natural Language Toolkit, 
+nltk.download('stopwords')
+
+from nltk.corpus import stopwords
+import re
+
+# define stop words in portuguese
+stop_words = set(stopwords.words('portuguese'))
+```
+### Para finalizar, segue uma nuvem de palavra das palavras mais comuns nas descrições dos problemas de Casas e de Pŕedios, respectivamente
+```{python}
+#| echo: false
+# Description column houses problems
+problems = df_cleaned['problemasDescricaoCasas'].dropna()
+
+# Combine all text in one string
+text = ' '.join(problems).lower()
+
+# Using regulars expressions to extract only words
+words = re.findall(r'\b[a-zá-úà-ùâ-ûã-õç]+\b', text)
+
+# removing stop words
+filtered_words = [word for word in words if word not in stop_words]
+palavras_vas = ['pessoas', 'condominio', 'condomínio', 'apartamento']
+filtered_words = [word for word in filtered_words if word not in palavras_vas]
+
+
+# join filtered words in 1 text
+filtered_text = ' '.join(filtered_words)
+
+# generating word cloud
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate(filtered_text)
+
+# plotting
+plt.figure(figsize=(15, 7.5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.title('Problemas Comuns Reportados de Casas')
+plt.show()
+
+# saving wordcloud to a file
+wordcloud.to_file("wordcloud/problemasCasas.png")
+```
+
+```{python}
+#| echo: false
+# same here, but with the column of buildings problems
+problems = df_cleaned['descricaoPredios'].dropna()
+
+text = ' '.join(problems).lower()
+
+words = re.findall(r'\b[a-zá-úà-ùâ-ûã-õç]+\b', text)
+
+filtered_words = [word for word in words if word not in stop_words]
+palavras_vas = ['pessoas', 'condominio', 'condomínio', 'apartamento']
+filtered_words = [word for word in filtered_words if word not in palavras_vas]
+
+filtered_text = ' '.join(filtered_words)
+
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate(filtered_text)
+
+plt.figure(figsize=(15, 7.5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.title('Problemas Comuns Reportados de Pŕedios')
+plt.show()
+
+wordcloud.to_file("wordcloud/problemasPredios.png")
+```
+
